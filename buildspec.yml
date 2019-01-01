@@ -1,0 +1,73 @@
+version: 0.2
+
+
+env:
+  variables:
+    TERRAFORM_VERSION: 0.10.3
+    TERRAFORM_SHA256: f316c6ff8b2abe257250d19cbe0e3cf745dedfa67b37bb4afaf95e0291efeade
+
+phases:
+  install:
+    commands:
+      - |
+        if [ "${DEBUG}" = "true" ]; then 
+          echo "********** debug **********"
+          echo "export TERRAFORM_VERSION=${TERRAFORM_VERSION}"
+          echo "export TERRAFORM_SHA256=${TERRAFORM_SHA256}"
+          echo "export AWS_ACCESS_KEY=${AWS_ACCESS_KEY}"
+          echo "export AWS_SECRET_KEY=${AWS_SECRET_KEY}"
+          echo "export AWS_REGION=${AWS_REGION}"
+          echo "export PUBLIC_KEY=${PUBLIC_KEY}"
+          echo "export VPC_ID=${VPC_ID}"
+          echo "export S3_BUCKET=${S3_BUCKET}"
+          echo "export DESTROY_AFTER_APPLY=${DESTROY_AFTER_APPLY}"
+          echo "export DESTROY=${DESTROY}"
+          echo "export DEBUG=${DEBUG}"
+        fi
+      - echo 'aws_access_key = '\""${AWS_ACCESS_KEY}"\" >> terraform.auto.tfvars;
+      - echo 'aws_secret_key = '\""${AWS_SECRET_KEY}"\" >> terraform.auto.tfvars;
+      - echo 'aws_region = '\""${AWS_REGION}"\" >> terraform.auto.tfvars;
+      - echo 'public_key = '\""${PUBLIC_KEY}"\" >> terraform.auto.tfvars;
+      - echo 'vpc_id = '\""${VPC_ID}"\" >> terraform.auto.tfvars;
+      - cat terraform.auto.tfvars
+      - test -r terraform.auto.tfvars && aws s3 cp terraform.auto.tfvars "s3://${S3_BUCKET}/lambda/terraform.auto.tfvars" -f || true 
+      - pwd
+      - ls -larth
+      - echo "********** install **********"
+      - curl -o /tmp/terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip 
+      - echo "${TERRAFORM_SHA256} /tmp/terraform.zip" | sha256sum -c --quiet 
+      - ls -larth /tmp/terraform*
+      - unzip /tmp/terraform.zip -d /usr/bin/
+      - ls -larth /usr/bin/terraform*
+      - terraform init -no-color -input=false                          # init terraform
+      - pwd
+      - ls -larth
+  build:
+    commands:
+      - echo "********** build **********"
+      - |
+        exists=$(aws s3 ls "s3://${S3_BUCKET}/lambda/terraform.tfstate")
+        if [ -z "$exists" ]; then
+          echo "tfstate file exist"
+        else
+          echo "tfstate file does not exists"
+          aws s3 cp "s3://${S3_BUCKET}/lambda/terraform.tfstate" ./
+        fi
+      - |
+        if [ "${DESTROY}" = "true" ]; then                               # destroy resources
+          echo "********** about to destroy **********"
+          terraform destroy -no-color -input=false -force
+        else
+          echo "********** about to apply **********"
+          terraform plan -no-color -out=tfplan -input=false              # plan terraform
+          terraform apply -no-color -parallelism=16 -input=false tfplan  # apply terraform
+        fi
+      - test -r terraform.tfstate && aws s3 cp terraform.tfstate "s3://${S3_BUCKET}/lambda/terraform.tfstate" || true
+  post_build:
+    commands:
+      - echo "********** post build **********"
+      - |
+        if [ "${DESTROY_AFTER_APPLY}" = "true" ]; then                       # destroy resources
+          terraform destroy -no-color -input=false -force
+        fi
+      - echo "********** done **********"
