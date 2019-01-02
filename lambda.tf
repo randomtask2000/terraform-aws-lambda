@@ -35,6 +35,8 @@ resource "aws_lambda_function" "test_lambda" {
       foo = "bar"
     }
   }
+
+  depends_on = ["archive_file"]
 }
 
 # https://www.terraform.io/docs/providers/archive/d/archive_file.html
