@@ -38,10 +38,10 @@ resource "aws_lambda_function" "test_lambda" {
 }
 
 # https://www.terraform.io/docs/providers/archive/d/archive_file.html
-
+# and https://github.com/hashicorp/terraform/issues/8344
 data "archive_file" "init" {
   type        = "zip"
-  source_file = "files/index.js"
+  source_file = "files"
   output_path = "files.zip"
 }
 
