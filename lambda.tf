@@ -2,6 +2,9 @@
 
 # https://www.terraform.io/docs/providers/aws/r/lambda_function.html
 
+provider "aws" {
+  region     = "${var.aws_region}"
+}
 resource "aws_iam_role" "iam_for_lambda" {
   name = "iam_for_lambda"
 
@@ -24,7 +27,7 @@ EOF
 
 resource "aws_lambda_function" "test_lambda" {
   filename         = "files.zip"
-  function_name    = "index.js"
+  function_name    = "${var.lambda_name}"
   role             = "${aws_iam_role.iam_for_lambda.arn}"
   handler          = "exports.handler"
   source_code_hash = "${base64sha256(file("files.zip"))}"
@@ -35,8 +38,6 @@ resource "aws_lambda_function" "test_lambda" {
       foo = "bar"
     }
   }
-
-  depends_on = ["archive_file"]
 }
 
 # https://www.terraform.io/docs/providers/archive/d/archive_file.html
